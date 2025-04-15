@@ -21,42 +21,32 @@ if not DATABASE_URL:
 else:
     # For PostgreSQL (production)
     try:
-        # Add SSL mode and force IPv4 if not already present
+        # Add SSL mode if not already present
         if "?" not in DATABASE_URL:
             DATABASE_URL += "?sslmode=require"
-        if "hostaddr" not in DATABASE_URL:
-            # Extract host from DATABASE_URL
-            import re
-            host_match = re.search(r'@([^:/]+)', DATABASE_URL)
-            if host_match:
-                host = host_match.group(1)
-                # Force IPv4 by resolving host to IPv4 address
-                import socket
-                try:
-                    ipv4 = socket.gethostbyname(host)
-                    DATABASE_URL = DATABASE_URL.replace(f"@{host}", f"@{ipv4}")
-                except socket.gaierror:
-                    logger.warning(f"Could not resolve {host} to IPv4, using original host")
-
+            
+        # Configure engine with appropriate settings for Supabase Session Pooler
         engine = create_engine(
             DATABASE_URL,
             pool_pre_ping=True,  # Enable connection health checks
             pool_recycle=300,    # Recycle connections after 5 minutes
             pool_size=5,         # Set a reasonable pool size
             max_overflow=10,     # Allow some overflow connections
+            # These settings are optimized for Supabase Session Pooler
             connect_args={
-                "connect_timeout": 10,  # 10 second timeout
-                "keepalives": 1,        # Enable keepalives
-                "keepalives_idle": 30,  # 30 seconds before sending keepalive
-                "keepalives_interval": 10,  # 10 seconds between keepalives
-                "keepalives_count": 5    # 5 failed keepalives before closing
+                "connect_timeout": 10,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 5,
+                "application_name": "foerdercheck"  # Helps with monitoring
             }
         )
         
         # Test the connection
         with engine.connect() as conn:
             conn.execute("SELECT 1")
-            logger.info("Successfully connected to the database")
+            logger.info("Successfully connected to the database using Session Pooler")
             
     except Exception as e:
         logger.error(f"Failed to connect to database: {str(e)}")
