@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 import os
 import logging
+from jose import jwt, JWTError
 
 from . import models, database, email_service
 from .database import engine, get_db, Base
@@ -23,7 +24,12 @@ logger = logging.getLogger(__name__)
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://*.supabase.co", "https://foerdercheck-nrw-frontend.vercel.app"],  # Frontend URLs
+    allow_origins=[
+        "http://localhost:3000",
+        "https://*.supabase.co",
+        "https://foerdercheck-nrw-frontend.vercel.app",
+        "https://foerdercheck-nrw-frontend.vercel.app/*"
+    ],  # Frontend URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,6 +38,30 @@ app.add_middleware(
 
 # Initialize email service
 email_service = email_service.EmailService()
+
+# Supabase JWT verification
+async def verify_supabase_jwt(request: Request):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header"
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        # Verify the JWT token using Supabase's JWT secret
+        payload = jwt.decode(
+            token,
+            os.getenv("SUPABASE_JWT_SECRET"),
+            algorithms=["HS256"]
+        )
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
 
 # Base eligibility criteria for households without kids
 ELIGIBILITY_CRITERIA_NO_KIDS = {
@@ -269,221 +299,6 @@ def determine_eligibility(request: EligibilityRequest) -> Dict[str, Any]:
         }
     }
 
-# Authentication endpoints
-@app.post("/api/auth/register", response_model=TokenResponse)
-async def register(request: EmailRequest, db: Session = Depends(get_db)):
-    logger.info(f"Registration attempt for email: {request.email}")
-    
-    # Check if user already exists
-    user = db.query(models.User).filter(models.User.email == request.email).first()
-    if user:
-        logger.info(f"User already exists: {request.email}")
-        if user.is_verified:
-            logger.warning(f"User already verified: {request.email}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered and verified"
-            )
-        # If user exists but is not verified, generate new verification token
-        token = user.generate_auth_token()
-        logger.info(f"Generated new verification token for existing user: {request.email}")
-        db.commit()
-    else:
-        # Create new user
-        logger.info(f"Creating new user: {request.email}")
-        user = models.User(email=request.email)
-        token = user.generate_auth_token()
-        logger.info(f"Generated verification token for new user: {request.email}")
-        db.add(user)
-        db.commit()
-
-    # Send verification email
-    if email_service.send_verification_email(request.email, token):
-        logger.info(f"Verification email sent to: {request.email}")
-        return {"message": "Verification email sent"}
-    else:
-        logger.error(f"Failed to send verification email to: {request.email}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send verification email"
-        )
-
-@app.post("/api/auth/login", response_model=TokenResponse)
-async def login(request: EmailRequest, db: Session = Depends(get_db)):
-    logger.info(f"Login attempt for email: {request.email}")
-    
-    user = db.query(models.User).filter(models.User.email == request.email).first()
-    
-    if not user:
-        logger.warning(f"Login failed - user not found: {request.email}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    if not user.is_verified:
-        logger.warning(f"Login failed - user not verified: {request.email}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Please verify your email first"
-        )
-
-    # Generate new login token
-    token = user.generate_auth_token()
-    logger.info(f"Generated login token for user: {request.email}")
-    db.commit()
-
-    # Send login link
-    if email_service.send_login_link(request.email, token):
-        logger.info(f"Login link sent to: {request.email}")
-        return {"message": "Login link sent"}
-    else:
-        logger.error(f"Failed to send login link to: {request.email}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send login link"
-        )
-
-@app.get("/api/auth/verify/{token}", response_model=VerificationResponse)
-async def verify_email(token: str, db: Session = Depends(get_db)):
-    try:
-        # First check if token exists and is valid
-        user = db.query(models.User).filter(models.User.auth_token == token).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Ungültiger oder abgelaufener Token"
-            )
-
-        # Check if token is expired
-        if user.token_expires_at and user.token_expires_at < datetime.utcnow():
-            # Clear the expired token
-            user.auth_token = None
-            user.token_expires_at = None
-            db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Token ist abgelaufen"
-            )
-
-        # Update user verification status
-        user.is_verified = True
-        user.auth_token = None
-        user.token_expires_at = None
-        user.last_login = datetime.utcnow()
-        
-        try:
-            db.commit()
-            return {"message": "E-Mail erfolgreich bestätigt"}
-        except Exception as db_error:
-            db.rollback()
-            print(f"Database error during verification: {str(db_error)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Ein Fehler ist bei der Datenbankoperation aufgetreten"
-            )
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Unexpected error during verification: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ein unerwarteter Fehler ist aufgetreten"
-        )
-
-@app.get("/api/auth/login/{token}")
-async def login_with_token(token: str, db: Session = Depends(get_db)):
-    try:
-        user = db.query(models.User).filter(models.User.auth_token == token).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Ungültiger oder abgelaufener Login-Link"
-            )
-
-        if not user.is_verified:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse"
-            )
-
-        if user.token_expires_at and user.token_expires_at < datetime.utcnow():
-            # Clear the expired token
-            user.auth_token = None
-            user.token_expires_at = None
-            db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Login-Link ist abgelaufen"
-            )
-
-        # Generate a new session token
-        session_token = user.generate_auth_token()
-        
-        # Update last login and clear the old token
-        user.last_login = datetime.utcnow()
-        user.auth_token = None
-        user.token_expires_at = None
-        
-        try:
-            db.commit()
-            return {
-                "message": "Erfolgreich eingeloggt",
-                "email": user.email,
-                "token": session_token
-            }
-        except Exception as db_error:
-            db.rollback()
-            logger.error(f"Database error during login: {str(db_error)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Ein Fehler ist bei der Datenbankoperation aufgetreten"
-            )
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error during login: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ein unerwarteter Fehler ist aufgetreten"
-        )
-
-def get_token_from_header(request: Request):
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header"
-        )
-    return auth_header.split(" ")[1]
-
-@app.get("/api/auth/validate")
-async def validate_token(token: str = Depends(get_token_from_header), db: Session = Depends(get_db)):
-    try:
-        user = db.query(models.User).filter(models.User.auth_token == token).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
-
-        if user.token_expires_at and user.token_expires_at < datetime.utcnow():
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token expired"
-            )
-
-        return {"valid": True, "email": user.email}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Token validation failed"
-        )
-
 @app.post("/api/check-eligibility")
 async def check_eligibility(request: EligibilityRequest):
     try:
@@ -498,38 +313,31 @@ async def root():
 @app.post("/api/document-check/save")
 async def save_document_check(
     state: DocumentCheckState,
-    token: str = Depends(get_token_from_header),
-    db: Session = Depends(get_db)
+    payload: dict = Depends(verify_supabase_jwt)
 ):
     try:
-        # First try to find user by token
-        user = db.query(models.User).filter(models.User.auth_token == token).first()
-        
-        if not user:
-            # If no user found with token, try to find by email in token
-            try:
-                # Decode token to get email (assuming token contains email)
-                email = token  # In this case, token is the email
-                user = db.query(models.User).filter(models.User.email == email).first()
-                
-                if not user:
-                    # Create new user if not found
-                    user = models.User(
-                        email=email,
-                        auth_token=token,
-                        token_expires_at=datetime.utcnow() + timedelta(days=30)  # Extend token expiry
-                    )
-                    db.add(user)
-                    db.commit()
-                    db.refresh(user)
-            except Exception as e:
-                logger.error(f"Error processing token: {str(e)}")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token"
-                )
+        # Get user email from JWT payload
+        user_email = payload.get("email")
+        if not user_email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload"
+            )
 
         # Save the document check state
+        db = next(get_db())
+        user = db.query(models.User).filter(models.User.email == user_email).first()
+        
+        if not user:
+            # Create new user if not found
+            user = models.User(
+                email=user_email,
+                is_verified=True  # Supabase handles email verification
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
         user.document_check_state = state.dict()
         db.commit()
         
@@ -542,37 +350,21 @@ async def save_document_check(
         )
 
 @app.get("/api/document-check/load")
-async def load_document_check(
-    token: str = Depends(get_token_from_header),
-    db: Session = Depends(get_db)
-):
+async def load_document_check(payload: dict = Depends(verify_supabase_jwt)):
     try:
-        # First try to find user by token
-        user = db.query(models.User).filter(models.User.auth_token == token).first()
+        # Get user email from JWT payload
+        user_email = payload.get("email")
+        if not user_email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload"
+            )
+
+        db = next(get_db())
+        user = db.query(models.User).filter(models.User.email == user_email).first()
         
         if not user:
-            # If no user found with token, try to find by email in token
-            try:
-                # Decode token to get email (assuming token contains email)
-                email = token  # In this case, token is the email
-                user = db.query(models.User).filter(models.User.email == email).first()
-                
-                if not user:
-                    # Create new user if not found
-                    user = models.User(
-                        email=email,
-                        auth_token=token,
-                        token_expires_at=datetime.utcnow() + timedelta(days=30)  # Extend token expiry
-                    )
-                    db.add(user)
-                    db.commit()
-                    db.refresh(user)
-            except Exception as e:
-                logger.error(f"Error processing token: {str(e)}")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token"
-                )
+            return {"propertyType": "", "answers": {}}
 
         if not user.document_check_state:
             return {"propertyType": "", "answers": {}}
