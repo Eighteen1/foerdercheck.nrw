@@ -8,8 +8,11 @@ import os
 import logging
 
 from . import models, database, email_service
-from .database import engine, get_db
+from .database import engine, get_db, Base
 from .routes import forms
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Eligibility Check API")
 
@@ -581,9 +584,6 @@ async def load_document_check(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to load document check state"
         )
-
-# Create database tables
-models.Base.metadata.create_all(bind=engine)
 
 # Include routers
 app.include_router(forms.router) 

@@ -15,13 +15,15 @@ if not DATABASE_URL:
     )
 else:
     # For PostgreSQL (production)
-    # Add SSL mode to the connection string
+    # Add SSL mode to the connection string if not already present
     if "?" not in DATABASE_URL:
         DATABASE_URL += "?sslmode=require"
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,  # Enable connection health checks
         pool_recycle=300,    # Recycle connections after 5 minutes
+        pool_size=5,         # Set a reasonable pool size
+        max_overflow=10      # Allow some overflow connections
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
