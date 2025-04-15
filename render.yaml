@@ -15,18 +15,4 @@ services:
       - key: ALLOWED_DEVELOPER_EMAILS
         sync: false
       - key: DATABASE_URL
-        sync: false
-
-  - type: web
-    name: foerdercheck-frontend
-    env: node
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    startCommand: npm start
-    envVars:
-      - key: REACT_APP_API_URL
-        sync: false
-      - key: REACT_APP_SUPABASE_URL
-        sync: false
-      - key: REACT_APP_SUPABASE_ANON_KEY
         sync: false 
