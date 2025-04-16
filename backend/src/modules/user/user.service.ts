@@ -28,6 +28,9 @@ export class UserService {
       const { data: authData, error: authError } = await this.supabaseAdmin.auth.admin.createUser({
         email,
         email_confirm: true,
+        user_metadata: {
+          created_via: 'foerdercheck'
+        }
       });
 
       if (authError) {
@@ -35,7 +38,24 @@ export class UserService {
         throw authError;
       }
 
-      return authData;
+      // Create initial user_data record
+      const { data: userData, error: userError } = await this.supabaseAdmin
+        .from('user_data')
+        .insert([
+          {
+            id: authData.user.id,
+            eligibility_data: null,
+            application_status: 'pending',
+            document_status: {}
+          }
+        ]);
+
+      if (userError) {
+        this.logger.error('Error creating user_data record:', userError);
+        throw userError;
+      }
+
+      return { user: authData.user };
     } catch (error) {
       this.logger.error('Error in createUser:', error);
       throw error;
@@ -46,13 +66,11 @@ export class UserService {
     try {
       const { data, error } = await this.supabaseAdmin
         .from('user_data')
-        .insert([
-          {
-            id: userId,
-            eligibility_data: eligibilityData,
-            application_status: 'pending'
-          }
-        ]);
+        .update({
+          eligibility_data: eligibilityData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
 
       if (error) {
         this.logger.error('Error storing eligibility data:', error);
