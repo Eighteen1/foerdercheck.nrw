@@ -377,5 +377,20 @@ async def load_document_check(payload: dict = Depends(verify_supabase_jwt)):
             detail="Failed to load document check state"
         )
 
+@app.post("/api/user/create")
+async def create_user(request: EmailRequest):
+    try:
+        logger.info(f"Creating user with email: {request.email}")
+        # Here you would add your user creation logic
+        return {"message": "User created successfully", "email": request.email}
+    except Exception as e:
+        logger.error(f"Error creating user: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/user/test")
+async def test_endpoint():
+    logger.info("Test endpoint hit")
+    return {"message": "User controller is working"}
+
 # Include routers
 app.include_router(forms.router) 
