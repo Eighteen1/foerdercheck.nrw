@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Logger, Get } from '@nestjs/common';
 import { UserService } from './user.service';
 
 @Controller('user')
@@ -6,6 +6,12 @@ export class UserController {
   private readonly logger = new Logger(UserController.name);
 
   constructor(private readonly userService: UserService) {}
+
+  @Get('test')
+  async test() {
+    this.logger.log('Test endpoint hit');
+    return { message: 'User controller is working' };
+  }
 
   @Post('create')
   async createUser(@Body('email') email: string) {
