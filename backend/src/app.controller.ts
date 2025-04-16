@@ -9,4 +9,12 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  @Get('api')
+  getApiInfo(): { message: string, endpoints: string[] } {
+    return {
+      message: 'API is running',
+      endpoints: ['/api/user/create', '/api/user/test', '/api/check-eligibility']
+    };
+  }
 }
