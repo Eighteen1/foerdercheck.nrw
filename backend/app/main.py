@@ -30,6 +30,11 @@ supabase: Client = create_client(
         "auth": {
             "autoRefreshToken": False,
             "persistSession": False
+        },
+        "global": {
+            "headers": {
+                "x-client-info": "foerdercheck-backend"
+            }
         }
     }
 )
