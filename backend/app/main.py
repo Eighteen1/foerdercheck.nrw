@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import os
 import logging
 from jose import jwt, JWTError
+from supabase import create_client, Client
 
 from . import models, database, email_service
 from .database import engine, get_db, Base
@@ -20,6 +21,18 @@ app = FastAPI(title="Eligibility Check API")
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Initialize Supabase client
+supabase: Client = create_client(
+    os.getenv("SUPABASE_URL"),
+    os.getenv("SUPABASE_SERVICE_KEY"),
+    {
+        "auth": {
+            "autoRefreshToken": False,
+            "persistSession": False
+        }
+    }
+)
 
 # Enable CORS
 app.add_middleware(
@@ -128,6 +141,10 @@ class EligibilityRequest(BaseModel):
 class DocumentCheckState(BaseModel):
     propertyType: str
     answers: dict
+
+class StoreEligibilityRequest(BaseModel):
+    userId: str
+    eligibilityData: Dict[str, Any]
 
 def calculate_limits(request: EligibilityRequest) -> Dict[str, float]:
     # Determine which base criteria to use based on whether there are kids
@@ -381,10 +398,61 @@ async def load_document_check(payload: dict = Depends(verify_supabase_jwt)):
 async def create_user(request: EmailRequest):
     try:
         logger.info(f"Creating user with email: {request.email}")
-        # Here you would add your user creation logic
-        return {"message": "User created successfully", "email": request.email}
+        
+        # Create user in Supabase Auth
+        auth_response = await supabase.auth.admin.create_user({
+            "email": request.email,
+            "email_confirm": True,
+            "user_metadata": {
+                "created_via": "foerdercheck"
+            }
+        })
+        
+        if auth_response.error:
+            logger.error(f"Error creating user in auth: {auth_response.error}")
+            raise HTTPException(status_code=400, detail=str(auth_response.error))
+        
+        # Create initial user_data record
+        user_data_response = await supabase.table('user_data').insert({
+            "id": auth_response.user.id,
+            "eligibility_data": None,
+            "application_status": "pending",
+            "document_status": {}
+        }).execute()
+        
+        if user_data_response.error:
+            logger.error(f"Error creating user_data record: {user_data_response.error}")
+            raise HTTPException(status_code=400, detail=str(user_data_response.error))
+        
+        return {
+            "message": "User created successfully",
+            "user": {
+                "id": auth_response.user.id,
+                "email": request.email
+            }
+        }
     except Exception as e:
         logger.error(f"Error creating user: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/user/store-eligibility")
+async def store_eligibility_data(request: StoreEligibilityRequest):
+    try:
+        logger.info(f"Storing eligibility data for user: {request.userId}")
+        
+        # Update user_data record with eligibility data
+        response = await supabase.table('user_data').update({
+            "eligibility_data": request.eligibilityData,
+            "updated_at": datetime.now().isoformat()
+        }).eq("id", request.userId).execute()
+        
+        if response.error:
+            logger.error(f"Error storing eligibility data: {response.error}")
+            raise HTTPException(status_code=400, detail=str(response.error))
+        
+        return {"message": "Eligibility data stored successfully"}
+    except Exception as e:
+        logger.error(f"Error storing eligibility data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/user/test")
