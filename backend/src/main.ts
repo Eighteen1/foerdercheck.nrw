@@ -6,12 +6,12 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
   
-  // Set global prefix and log it
-  app.setGlobalPrefix('api');
-  logger.log('Global prefix set to: api');
+  // Temporarily remove global prefix
+  // app.setGlobalPrefix('api');
+  logger.log('Starting application without global prefix');
   
   app.enableCors({
-    origin: ['http://localhost:3000', 'https://foerdercheck-nrw-frontend.vercel.app'], // Add your Vercel frontend URL
+    origin: ['http://localhost:3000', 'https://foerdercheck-nrw-frontend.vercel.app'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });

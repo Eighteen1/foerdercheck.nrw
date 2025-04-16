@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Logger, Get } from '@nestjs/common';
 import { UserService } from './user.service';
 
-@Controller('user')
+@Controller('api/user')
 export class UserController {
   private readonly logger = new Logger(UserController.name);
 
