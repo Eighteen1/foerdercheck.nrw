@@ -9,8 +9,15 @@ export class UserController {
 
   @Post('create')
   async createUser(@Body('email') email: string) {
-    this.logger.log(`Creating user with email: ${email}`);
-    return this.userService.createUser(email);
+    this.logger.log(`Received create user request for email: ${email}`);
+    try {
+      const result = await this.userService.createUser(email);
+      this.logger.log(`Successfully created user: ${JSON.stringify(result)}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error creating user: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   @Post('store-eligibility')
