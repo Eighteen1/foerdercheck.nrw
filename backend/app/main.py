@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import os
 import logging
 from jose import jwt, JWTError
-from supabase import create_client, Client
+from supabase import create_client, Client, AsyncClient
 
 from . import models, database, email_service
 from .database import engine, get_db, Base
@@ -23,20 +23,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize Supabase client
-supabase: Client = create_client(
+supabase: AsyncClient = create_client(
     os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_SERVICE_KEY"),
-    {
-        "auth": {
-            "autoRefreshToken": False,
-            "persistSession": False
-        },
-        "global": {
-            "headers": {
-                "x-client-info": "foerdercheck-backend"
-            }
-        }
-    }
+    os.getenv("SUPABASE_SERVICE_KEY")
 )
 
 # Enable CORS
