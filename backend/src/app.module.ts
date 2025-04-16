@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DocumentCheckModule } from './modules/document-check/document-check.module';
 import { DocumentCheck } from './modules/document-check/document-check.entity';
 import { AuthModule } from './modules/auth/auth.module';
+import { UserModule } from './modules/user/user.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AuthModule } from './modules/auth/auth.module';
     }),
     AuthModule,
     DocumentCheckModule,
+    UserModule,
   ],
 })
 export class AppModule {}
