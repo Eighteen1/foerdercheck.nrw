@@ -405,6 +405,8 @@ async def create_user(request: EmailRequest):
             }
         })
         
+        logger.info(f"Auth response: {auth_response}")
+        
         if not auth_response or not auth_response.user:
             logger.error("No user data in auth response")
             raise HTTPException(status_code=400, detail="Failed to create user: No user data in response")
@@ -418,9 +420,14 @@ async def create_user(request: EmailRequest):
             "created_at": datetime.now().isoformat()
         }).execute()
         
-        if user_data_response.error:
-            logger.error(f"Error creating user_data record: {user_data_response.error}")
-            raise HTTPException(status_code=400, detail=str(user_data_response.error))
+        logger.info(f"User data response: {user_data_response}")
+        
+        # Check if the response contains data
+        if not user_data_response.data:
+            logger.error("No data returned from user_data creation")
+            raise HTTPException(status_code=400, detail="Failed to create user data record")
+        
+        logger.info(f"Successfully created user and user_data for email: {request.email}")
         
         return {
             "message": "User created successfully",
