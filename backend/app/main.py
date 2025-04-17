@@ -394,7 +394,7 @@ async def create_user(request: EmailRequest):
         logger.info(f"Creating user with email: {request.email}")
         
         # Create user in Supabase Auth using admin API
-        auth_response = await supabase.auth.admin.create_user({
+        auth_response = supabase.auth.admin.create_user({
             "email": request.email,
             "email_confirm": True,
             "user_metadata": {
@@ -410,11 +410,12 @@ async def create_user(request: EmailRequest):
             raise HTTPException(status_code=400, detail="Failed to create user: No user data in response")
         
         # Create initial user_data record
-        user_data_response = await supabase.table('user_data').insert({
+        user_data_response = supabase.table('user_data').insert({
             "id": auth_response.user.id,
             "eligibility_data": None,
             "application_status": "pending",
-            "document_status": {}
+            "document_status": {},
+            "created_at": datetime.now().isoformat()
         }).execute()
         
         if user_data_response.error:
@@ -438,7 +439,7 @@ async def store_eligibility_data(request: StoreEligibilityRequest):
         logger.info(f"Storing eligibility data for user: {request.userId}")
         
         # Update user_data record with eligibility data
-        response = await supabase.table('user_data').update({
+        response = supabase.table('user_data').update({
             "eligibility_data": request.eligibilityData,
             "updated_at": datetime.now().isoformat()
         }).eq("id", request.userId).execute()
