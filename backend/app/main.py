@@ -393,12 +393,15 @@ async def create_user(request: EmailRequest):
     try:
         logger.info(f"Creating user with email: {request.email}")
         
-        # Create user in Supabase Auth
+        # Create user in Supabase Auth using admin API
         auth_response = await supabase.auth.admin.create_user({
             "email": request.email,
             "email_confirm": True,
             "user_metadata": {
                 "created_via": "foerdercheck"
+            },
+            "app_metadata": {
+                "provider": "email"
             }
         })
         
