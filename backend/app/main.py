@@ -405,9 +405,9 @@ async def create_user(request: EmailRequest):
             }
         })
         
-        if auth_response.error:
-            logger.error(f"Error creating user in auth: {auth_response.error}")
-            raise HTTPException(status_code=400, detail=str(auth_response.error))
+        if not auth_response or not auth_response.user:
+            logger.error("No user data in auth response")
+            raise HTTPException(status_code=400, detail="Failed to create user: No user data in response")
         
         # Create initial user_data record
         user_data_response = await supabase.table('user_data').insert({
