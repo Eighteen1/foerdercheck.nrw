@@ -451,9 +451,14 @@ async def store_eligibility_data(request: StoreEligibilityRequest):
             "updated_at": datetime.now().isoformat()
         }).eq("id", request.userId).execute()
         
-        if response.error:
-            logger.error(f"Error storing eligibility data: {response.error}")
-            raise HTTPException(status_code=400, detail=str(response.error))
+        logger.info(f"Update response: {response}")
+        
+        # Check if the response contains data
+        if not response.data:
+            logger.error("No data returned from eligibility data update")
+            raise HTTPException(status_code=400, detail="Failed to update eligibility data")
+        
+        logger.info(f"Successfully stored eligibility data for user: {request.userId}")
         
         return {"message": "Eligibility data stored successfully"}
     except Exception as e:
