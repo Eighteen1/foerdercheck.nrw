@@ -396,7 +396,7 @@ async def create_user(request: EmailRequest):
         # Create user in Supabase Auth using admin API
         auth_response = supabase.auth.admin.create_user({
             "email": request.email,
-            "email_confirm": True,
+            "email_confirm": False,  # Don't automatically confirm email
             "user_metadata": {
                 "created_via": "foerdercheck"
             },
@@ -417,7 +417,8 @@ async def create_user(request: EmailRequest):
             "eligibility_data": None,
             "application_status": "pending",
             "document_status": {},
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now().isoformat(),
+            "is_verified": False  # Track verification status
         }).execute()
         
         logger.info(f"User data response: {user_data_response}")
@@ -427,10 +428,20 @@ async def create_user(request: EmailRequest):
             logger.error("No data returned from user_data creation")
             raise HTTPException(status_code=400, detail="Failed to create user data record")
         
+        # Send verification email
+        verification_response = supabase.auth.sign_in_with_otp({
+            "email": request.email,
+            "options": {
+                "emailRedirectTo": f"{os.getenv('FRONTEND_URL')}/auth/callback"
+            }
+        })
+        
+        logger.info(f"Verification email sent: {verification_response}")
+        
         logger.info(f"Successfully created user and user_data for email: {request.email}")
         
         return {
-            "message": "User created successfully",
+            "message": "User created successfully. Please check your email to verify your account.",
             "user": {
                 "id": auth_response.user.id,
                 "email": request.email
