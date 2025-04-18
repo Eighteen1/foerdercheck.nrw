@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON, Float
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON, Float, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta
@@ -15,6 +15,15 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Eligibility data fields
+    adult_count = Column(Integer, nullable=True)
+    child_count = Column(Integer, nullable=True)
+    is_disabled = Column(Boolean, nullable=True)
+    is_married = Column(Boolean, nullable=True)
+    is_retired = Column(Boolean, nullable=True)
+    gross_income = Column(Numeric(10, 2), nullable=True)
+    net_income = Column(Numeric(10, 2), nullable=True)
     
     # Document check state
     document_check_state = Column(JSON, nullable=True)

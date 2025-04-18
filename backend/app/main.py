@@ -456,9 +456,15 @@ async def store_eligibility_data(request: StoreEligibilityRequest):
     try:
         logger.info(f"Storing eligibility data for user: {request.userId}")
         
-        # Update user_data record with eligibility data
-        response = supabase.table('user_data').update({
-            "eligibility_data": request.eligibilityData,
+        # Update user record with individual fields
+        response = supabase.table('users').update({
+            "adult_count": request.eligibilityData.adultCount,
+            "child_count": request.eligibilityData.childCount,
+            "is_disabled": request.eligibilityData.isDisabled,
+            "is_married": request.eligibilityData.isMarried,
+            "is_retired": request.eligibilityData.isRetired,
+            "gross_income": request.eligibilityData.grossIncome,
+            "net_income": request.eligibilityData.netIncome,
             "updated_at": datetime.now().isoformat()
         }).eq("id", request.userId).execute()
         
