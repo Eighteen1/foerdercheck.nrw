@@ -411,14 +411,20 @@ async def create_user(request: EmailRequest):
             logger.error("No user data in auth response")
             raise HTTPException(status_code=400, detail="Failed to create user: No user data in response")
         
-        # Create initial user_data record
+        # Create initial user_data record with new structure
         user_data_response = supabase.table('user_data').insert({
             "id": auth_response.user.id,
-            "eligibility_data": None,
             "application_status": "pending",
             "document_status": {},
             "created_at": datetime.now().isoformat(),
-            "is_verified": False  # Track verification status
+            "is_verified": False,  # Track verification status
+            "adult_count": None,
+            "child_count": None,
+            "is_disabled": None,
+            "is_married": None,
+            "is_retired": None,
+            "gross_income": None,
+            "net_income": None
         }).execute()
         
         logger.info(f"User data response: {user_data_response}")
@@ -456,8 +462,8 @@ async def store_eligibility_data(request: StoreEligibilityRequest):
     try:
         logger.info(f"Storing eligibility data for user: {request.userId}")
         
-        # Update user record with individual fields
-        response = supabase.table('users').update({
+        # Update user_data record with individual fields
+        response = supabase.table('user_data').update({
             "adult_count": request.eligibilityData.adultCount,
             "child_count": request.eligibilityData.childCount,
             "is_disabled": request.eligibilityData.isDisabled,
