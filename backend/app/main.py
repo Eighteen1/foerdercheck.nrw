@@ -136,9 +136,18 @@ class DocumentCheckState(BaseModel):
     propertyType: str
     answers: dict
 
+class EligibilityData(BaseModel):
+    adultCount: int
+    childCount: int
+    isDisabled: bool
+    isMarried: bool
+    isRetired: bool
+    grossIncome: float
+    netIncome: float
+
 class StoreEligibilityRequest(BaseModel):
     userId: str
-    eligibilityData: Dict[str, Any]
+    eligibilityData: EligibilityData
 
 def calculate_limits(request: EligibilityRequest) -> Dict[str, float]:
     # Determine which base criteria to use based on whether there are kids
@@ -461,6 +470,7 @@ async def create_user(request: EmailRequest):
 async def store_eligibility_data(request: StoreEligibilityRequest):
     try:
         logger.info(f"Storing eligibility data for user: {request.userId}")
+        logger.info(f"Eligibility data: {request.eligibilityData}")
         
         # Update user_data record with individual fields
         response = supabase.table('user_data').update({
