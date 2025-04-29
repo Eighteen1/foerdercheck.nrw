@@ -26,7 +26,7 @@ export class DocumentCheckController {
 
     try {
       const result = await this.documentCheckService.saveDocumentCheck(userEmail, {
-        propertyType: documentCheckData.propertyType,
+        foerderVariante: documentCheckData.foerderVariante,
         answers: documentCheckData.answers,
       });
       this.logger.log(`Successfully saved document check for user: ${userEmail}`);

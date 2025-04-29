@@ -133,7 +133,7 @@ class EligibilityRequest(BaseModel):
     netIncome: float
 
 class DocumentCheckState(BaseModel):
-    propertyType: str
+    foerderVariante: str
     answers: dict
 
 class EligibilityData(BaseModel):
@@ -384,10 +384,10 @@ async def load_document_check(payload: dict = Depends(verify_supabase_jwt)):
         user = db.query(models.User).filter(models.User.email == user_email).first()
         
         if not user:
-            return {"propertyType": "", "answers": {}}
+            return {"foerderVariante": "", "answers": {}}
 
         if not user.document_check_state:
-            return {"propertyType": "", "answers": {}}
+            return {"foerderVariante": "", "answers": {}}
 
         return user.document_check_state
     except Exception as e:

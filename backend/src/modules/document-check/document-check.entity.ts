@@ -9,7 +9,7 @@ export class DocumentCheck {
   userId: string;
 
   @Column('json')
-  propertyType: string;
+  foerderVariante: string;
 
   @Column('json')
   answers: {
